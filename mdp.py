@@ -122,6 +122,7 @@ def render():
 # 值迭代算法
 def value_iteration(theta=1e-6):
     V = np.zeros(N_STATES)  # 初始化价值函数
+    iteration = 0
     while True:
         delta = 0
         for s in range(N_STATES):
@@ -138,6 +139,9 @@ def value_iteration(theta=1e-6):
                     max_value = total
             V[s] = max_value
             delta = max(delta, abs(v_old - V[s]))
+        iteration += 1
+        print(f"第 {iteration} 次迭代后的价值函数：")
+        print(V.reshape(GRID_SIZE, GRID_SIZE))
         if delta < theta:
             break
     return V
