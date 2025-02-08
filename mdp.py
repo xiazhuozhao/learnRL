@@ -31,6 +31,21 @@ def is_valid(row, col):
         return (row, col) not in OBSTACLES
     return False
 
+# 计算曼哈顿距离（用于奖励函数）
+def manhattan_distance(s1, s2):
+    row1, col1 = state_to_coord(s1)
+    row2, col2 = state_to_coord(s2)
+    return abs(row1 - row2) + abs(col1 - col2)
+
+# 获取奖励（改进后的奖励函数）
+def get_reward(next_s):
+    nr, nc = state_to_coord(next_s)
+    if (nr, nc) == TERMINAL:
+        return 10  # 到达终止状态奖励
+    # 增加距离惩罚：距离终点越远，惩罚越大
+    distance = manhattan_distance(next_s, coord_to_state(TERMINAL[0], TERMINAL[1]))
+    return -0.1 * distance  # 惩罚与距离成正比
+
 # 构建状态转移矩阵
 def build_transition_matrix():
     for s in range(N_STATES):
@@ -63,17 +78,6 @@ def build_transition_matrix():
             # 确定性的状态转移
             P[s][a].append((prob, next_s, reward, done))
 
-# 获取奖励
-def get_reward(next_s):
-    nr, nc = state_to_coord(next_s)
-    if (nr, nc) == TERMINAL:
-        return 10
-    return -0.1
-
-current_state = 0
-total_reward = 0
-step_count = 0
-
 # 重置环境
 def reset():
     global current_state, total_reward, step_count
@@ -89,7 +93,8 @@ def step(action):
     prob, next_s, reward, done = transitions[0]
     current_state = next_s
     discounted_reward = reward * (GAMMA ** step_count)  # 计算折扣后的奖励
-    print(f"基础奖励: {reward}, 折扣因子：{GAMMA ** step_count}, 折扣奖励: {discounted_reward}")
+    distance_penalty = -0.1 * manhattan_distance(next_s, coord_to_state(TERMINAL[0], TERMINAL[1]))  # 计算距离惩罚
+    print(f"基础奖励: {reward:.4f}, 距离惩罚: {distance_penalty:.4f}, 折扣因子：{GAMMA ** step_count:.4f}, 折扣奖励: {discounted_reward:.4f}")
     total_reward += discounted_reward  # 累加折扣后的奖励
     step_count += 1  # 增加步骤计数器
     print(f"当前状态: {current_state}, 动作: {action}, 状态转移概率: {transitions}")
@@ -114,69 +119,95 @@ def render():
     print('\n'.join(grid))
     print()
 
-# 打印MDP信息
-def print_mdp():
-    # print(f"状态集（S）: {N_STATES}")
-    # print(f"动作集（A）: {N_ACTIONS}")
-    # print(f"状态转移概率（P）(prob, next_state, reward, done): {P}")
-    print(f"奖励函数（R）: {total_reward}")
-    print(f"折扣因子（γ）: {GAMMA}")
+# 值迭代算法
+def value_iteration(theta=1e-6):
+    V = np.zeros(N_STATES)  # 初始化价值函数
+    while True:
+        delta = 0
+        for s in range(N_STATES):
+            row, col = state_to_coord(s)
+            if (row, col) == TERMINAL:
+                continue  # 终止状态价值为0
+            v_old = V[s]
+            max_value = -np.inf
+            for a in range(N_ACTIONS):
+                total = 0
+                for (prob, next_s, reward, _) in P[s][a]:
+                    total += prob * (reward + GAMMA * V[next_s])
+                if total > max_value:
+                    max_value = total
+            V[s] = max_value
+            delta = max(delta, abs(v_old - V[s]))
+        if delta < theta:
+            break
+    return V
+
+# 提取最优策略
+def extract_policy(V):
+    policy = np.zeros(N_STATES, dtype=int)  # 初始化策略
+    for s in range(N_STATES):
+        row, col = state_to_coord(s)
+        if (row, col) == TERMINAL:
+            continue  # 终止状态没有策略
+        max_value = -np.inf
+        best_action = 0
+        for a in range(N_ACTIONS):
+            total = 0
+            for (prob, next_s, reward, _) in P[s][a]:
+                total += prob * (reward + GAMMA * V[next_s])
+            if total > max_value:
+                max_value = total
+                best_action = a
+        policy[s] = best_action
+    return policy
+
+# 打印最优价值函数
+def print_optimal_value(V):
+    print("最优价值函数:")
+    print(V.reshape(GRID_SIZE, GRID_SIZE))
+
+# 打印最优策略
+def print_optimal_policy(policy):
+    print("最优策略:")
+    action_symbols = ['↑', '↓', '←', '→']
+    policy_grid = []
+    for r in range(GRID_SIZE):
+        row = []
+        for c in range(GRID_SIZE):
+            s = coord_to_state(r, c)
+            if (r, c) == TERMINAL:
+                row.append('T')
+            elif (r, c) in OBSTACLES:
+                row.append('X')
+            else:
+                row.append(action_symbols[policy[s]])
+        policy_grid.append(' '.join(row))
+    print('\n'.join(policy_grid))
 
 if __name__ == "__main__":
     build_transition_matrix()  # 构建状态转移矩阵
     reset()  # 重置环境
     print("初始网格：")
     render()
-    print(f"状态转移概率（P）(prob, next_state, reward, done): {P}")
-    print(f"状态集大小（S）: {N_STATES}")
-    print(f"动作集大小（A）: {N_ACTIONS}")
-    print(f"折扣因子（γ）: {GAMMA}")
     
-    # 定义键与动作的映射
-    action_map = {
-        'w': 0,  # 上
-        's': 1,  # 下
-        'a': 2,  # 左
-        'd': 3   # 右
-    }
+    # 执行值迭代算法
+    optimal_V = value_iteration()
+    print_optimal_value(optimal_V)
     
+    # 提取最优策略
+    optimal_policy = extract_policy(optimal_V)
+    print_optimal_policy(optimal_policy)
+    
+    # 使用最优策略规划路径
+    print("\n使用最优策略规划路径：")
+    reset()
     while True:
-        print('-'*20)
-        action = input("请输入动作 (w:上 s:下 a:左 d:右, q:退出): ")
-        if action == 'q':
-            break
-        if action not in action_map:
-            print("无效输入。")
-            continue
-        
-        action = action_map[action]
+        action = optimal_policy[current_state]
         next_state, reward, done, _ = step(action)
-        print(f"执行动作 {action}:")
         render()
-        print(f"奖励: {reward}, 终止状态: {done}")
+        print(f"执行动作: {['↑', '↓', '←', '→'][action]}, 奖励: {reward:.4f}, 终止状态: {done}")
         if done:
             print("到达终止状态。")
             break
     
     print(f"总奖励: {total_reward}")
-
-
-# 主函数
-# if __name__ == "__main__":
-#     build_transition_matrix()  # 构建状态转移矩阵
-#     reset()  # 重置环境
-#     print("初始网格：")
-#     render()
-    
-#     actions = [3, 1, 3, 1, 3, 1, 3, 1]  # 向右->向下循环 (0:上 1:下 2:左 3:右)
-    
-#     for action in actions:
-#         next_state, reward, done, _ = step(action)
-#         print(f"执行动作 {action}:")
-#         render()
-#         print(f"奖励: {reward}, 终止状态: {done}\n")
-#         if done:
-#             break
-    
-#     print(f"总奖励: {total_reward}")
-#     print_mdp()
