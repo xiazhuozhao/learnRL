@@ -47,7 +47,7 @@ for episode in range(num_episodes):
 
     while not done:
         state_tensor = torch.tensor(state, dtype=torch.float32)  # 将状态转换为张量
-        action_probs, value = policy(state_tensor)  # 前向传播获取动作概率和状态值
+        action_probs, value = policy(state_tensor)  # 前向传播获取动作概率和状态值（分别为actor和critic的输出）
         action = np.random.choice(len(action_probs.detach().numpy()), p=action_probs.detach().numpy())  # 根据概率选择动作
         
         next_state, reward, done, _, _ = env.step(action)  # 执行动作并获取下一个状态和奖励
