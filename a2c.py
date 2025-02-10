@@ -56,6 +56,8 @@ for episode in range(num_episodes):
         next_state_tensor = torch.tensor(next_state, dtype=torch.float32)
         _, next_value = policy(next_state_tensor) if not done else (None, torch.tensor(0.0))  # 如果未结束，计算下一个状态值，否则为 0
         
+        # 基线（baseline）是由Critic网络估计的状态值函数 ( V(s) ) 提供的
+        # 具体来说，基线用于计算优势函数（advantage function），从而减少策略梯度的方差
         td_target = reward + gamma * next_value.item()  # 计算 TD 目标
         advantage = td_target - value.item()  # 计算优势
 
