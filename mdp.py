@@ -215,3 +215,4 @@ if __name__ == "__main__":
             break
     
     print(f"总奖励: {total_reward}")
+    print(P)
