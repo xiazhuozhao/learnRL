@@ -1,3 +1,10 @@
 *.pdf
 *.html
 *.png
+*.out
+*.log
+*.jpg
+*.jpeg
+*.gif
+baselines
+GAE
